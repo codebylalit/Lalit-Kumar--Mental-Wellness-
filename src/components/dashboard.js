@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai"; // Import the Generative AI package
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Bars3Icon } from "@heroicons/react/24/outline"; // for the menu icon
+import { Bars3Icon, SpeakerWaveIcon } from "@heroicons/react/24/outline"; // for the menu icon
 import { useLocation, useNavigate } from "react-router-dom";
 
 const apiKey = "AIzaSyARFKpGvBEBbvmmmeHnB_cGuXppt9EmU_g";
 const genAI = new GoogleGenerativeAI(apiKey);
+
 
 const model = genAI.getGenerativeModel({
   model: "gemini-1.5-flash",
@@ -36,24 +37,23 @@ const Dashboard = () => {
   // New states for form inputs
   const [username, setUsername] = useState("User");
 
+  const fetchUsername = async (token) => {
+    try {
+      const response = await axios.get("http://localhost:2000/auth/username", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsername(response.data.username);
+    } catch (error) {
+      console.error("Error fetching username:", error);
+    }
+  };
 
- const fetchUsername = async (token) => {
-   try {
-     const response = await axios.get("http://localhost:2000/auth/username", {
-       headers: { Authorization: `Bearer ${token}` },
-     });
-     setUsername(response.data.username);
-   } catch (error) {
-     console.error("Error fetching username:", error);
-   }
- };
-
- useEffect(() => {
-   const token = localStorage.getItem("token");
-   if (token) {
-     fetchUsername(token);
-   }
- }, []);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      fetchUsername(token);
+    }
+  }, []);
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -71,22 +71,32 @@ const Dashboard = () => {
   const handleSend = async () => {
     if (input.trim()) {
       setIsFirstVisit(false);
-      setChat([...chat, { sender: "user", message: input }]);
+      const newMessage = { sender: "user", message: input };
+      setChat([...chat, newMessage]);
       setInput("");
 
-      // Show typing indicator
-      setIsTyping(true);
+      // Save the chat to the database
+      const token = localStorage.getItem("token");
+      const userId = "some-user-id"; // Replace with the actual userId
 
-      // Simulate AI typing delay
+      try {
+        await axios.post("http://localhost:2000/chat/saveChat", {
+          userId,
+          sender: "user",
+          message: input,
+        });
+      } catch (error) {
+        console.error("Error saving chat:", error);
+      }
+
+      // Show typing indicator and AI response
+      setIsTyping(true);
       setTimeout(async () => {
         try {
           const chatSession = model.startChat({
             generationConfig,
             history: [
-              {
-                role: "user",
-                parts: [{ text: input }],
-              },
+              { role: "user", parts: [{ text: input }] },
               ...chat.map((message) => ({
                 role: message.sender === "user" ? "user" : "model",
                 parts: [{ text: message.message }],
@@ -98,10 +108,18 @@ const Dashboard = () => {
           const botMessage =
             result.response.text() || "Sorry, I didn’t understand that.";
 
+          // Update the chat with the bot's response
           setChat((prevChat) => [
             ...prevChat,
             { sender: "bot", message: botMessage },
           ]);
+
+          // Save bot's response to MongoDB as well
+          await axios.post("http://localhost:2000/chat/saveChat", {
+            userId,
+            sender: "bot",
+            message: botMessage,
+          });
         } catch (error) {
           console.error("Error fetching response:", error);
           setChat((prevChat) => [
@@ -112,11 +130,12 @@ const Dashboard = () => {
             },
           ]);
         } finally {
-          setIsTyping(false); // Hide typing indicator after response
+          setIsTyping(false);
         }
-      }, 2000); // Delay in milliseconds (adjust as needed)
+      }, 2000);
     }
   };
+
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -133,11 +152,17 @@ const Dashboard = () => {
   };
 
   const handlelogout = () => {
-    navigate('/') // Clear localStorage as well
+    navigate("/"); // Clear localStorage as well
   };
 
   const toggleDarkMode = () => {
     setIsDarkMode((prevMode) => !prevMode);
+  };
+
+  // Function to speak the message
+  const handleSpeak = (message) => {
+    const speech = new SpeechSynthesisUtterance(message);
+    window.speechSynthesis.speak(speech);
   };
 
   return (
@@ -175,7 +200,7 @@ const Dashboard = () => {
             {/* Dropdown Menu */}
             {menuOpen && (
               <div
-                className={`absolute right-0 w-32 border rounded-lg shadow-lg ${
+                className={`absolute right-0 w-32 border rounded-lg shadow-lg z-50 ${
                   isDarkMode
                     ? "bg-gray-800 border-gray-600"
                     : "bg-white border-gray-300"
@@ -211,6 +236,16 @@ const Dashboard = () => {
                 >
                   Logout
                 </button>
+                <button
+                  onClick={handlelogout}
+                  className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
+                    isDarkMode
+                      ? "text-white hover:bg-gray-700"
+                      : "text-green-600 hover:bg-gray-100"
+                  }`}
+                >
+                  Chat History
+                </button>
               </div>
             )}
           </div>
@@ -229,14 +264,14 @@ const Dashboard = () => {
             <>
               {isFirstVisit ? (
                 <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
-                  <DotLottieReact
+                  {/* <DotLottieReact
                     className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
                     src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
                     background="transparent"
                     speed="1"
                     loop
                     autoplay
-                  />
+                  /> */}
                   <div>
                     <p
                       className={`text-xl sm:text-2xl font-bold ${
@@ -253,7 +288,7 @@ const Dashboard = () => {
                     >
                       Welcome to Calmly - Your AI Therapist
                     </p>
-                
+
                     <p
                       className={`text-base sm:text-lg font-medium mt-2 ${
                         isDarkMode ? "text-green-400" : "text-green-600"
@@ -273,15 +308,26 @@ const Dashboard = () => {
                         : "justify-start"
                     } mb-4`}
                   >
-                    <p
-                      className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
-                        message.sender === "user"
-                          ? "bg-green-500 text-white text-right"
-                          : "bg-gray-200 text-gray-800 text-left"
-                      }`}
-                    >
-                      {message.message}
-                    </p>
+                    <div className="relative inline-block">
+                      <p
+                        className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
+                          message.sender === "user"
+                            ? "bg-green-500 text-white text-right"
+                            : "bg-gray-200 text-gray-800 text-left"
+                        }`}
+                      >
+                        {message.message}
+                      </p>
+
+                      {message.sender === "bot" && (
+                        <button
+                          onClick={() => handleSpeak(message.message)}
+                          className="absolute bottom-0 right-0 mb-2 mr-2 flex items-center space-x-2 text-sm text-black hover:text-blue-800"
+                        >
+                          <SpeakerWaveIcon className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

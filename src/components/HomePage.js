@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai"; // Import the Generative AI package
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Bars3Icon } from "@heroicons/react/24/outline"; // for the menu icon
+import { Bars3Icon, SpeakerWaveIcon } from "@heroicons/react/24/outline"; // for the menu icon
 import { useNavigate } from "react-router-dom";
 
 
@@ -16,6 +16,7 @@ const model = genAI.getGenerativeModel({
   `,
 });
 
+
 const generationConfig = {
   temperature: 1,
   topP: 0.95,
@@ -24,7 +25,7 @@ const generationConfig = {
   responseMimeType: "text/plain",
 };
 
-const Chatbot = () => {
+const HomePage = () => {
   const [input, setInput] = useState("");
   const [chat, setChat] = useState([]);
   const [isFirstVisit, setIsFirstVisit] = useState(true);
@@ -54,76 +55,100 @@ const Chatbot = () => {
     localStorage.setItem("chatHistory", JSON.stringify(chat));
   }, [chat]);
 
-const handleSignInClick = async (event) => {
-  event.preventDefault();
-  setErrorMessage(""); // Reset error message on new attempt
+  // Function to handle tag click and send predefined message
+  const handleFeelingTagClick = (feeling) => {
+    const responseMessages = {
+      stressed:
+        "It seems like you're feeling stressed. Take a deep breath. Let's focus on something calming.",
+      anxious:
+        "Anxiety can be overwhelming. Try some deep breathing exercises. It's okay to take it slow.",
+      sad: "I'm sorry you're feeling sad. It might help to talk about it. I'm here to listen.",
+      happy:
+        "It's great to hear that you're feeling happy! Celebrate those moments of joy!",
+    };
 
-  try {
-    const response = await axios.post("http://localhost:2000/auth/signin", {
-      email,
-      password,
-    });
+    const responseMessage =
+      responseMessages[feeling] ||
+      "I'm here to help. Feel free to share how you're feeling.";
 
-    if (response.status === 200) {
-      const { token, username } = response.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("username", username);
-      navigate("/dashboard", { state: { username } });
+    setChat([...chat, { sender: "user", message: feeling }]);
+    setChat((prevChat) => [
+      ...prevChat,
+      { sender: "bot", message: responseMessage },
+    ]);
+  };
+
+  
+  const handleSignInClick = async (event) => {
+    event.preventDefault();
+    setErrorMessage(""); // Reset error message on new attempt
+
+    try {
+      const response = await axios.post("http://localhost:2000/auth/signin", {
+        email,
+        password,
+      });
+
+      if (response.status === 200) {
+        const { token, username } = response.data;
+        localStorage.setItem("token", token);
+        localStorage.setItem("username", username);
+        navigate("/dashboard", { state: { username } });
+        setIsSubmitted(false); // Reset submitted state on successful sign-in
+      }
+    } catch (error) {
+      setIsSubmitted(true); // Keep this true to show error message on failure
+      if (error.response) {
+        console.error("Sign-in error:", error.response.data);
+        setErrorMessage(
+          error.response.data.message ||
+            "Sign-in failed. Please check your credentials."
+        );
+      } else {
+        console.error("Sign-in error:", error.message);
+        setErrorMessage("An error occurred. Please try again.");
+      }
     }
-  } catch (error) {
-    setIsSubmitted(false); // Set to false when there's an error
-    if (error.response) {
-      console.error("Sign-in error:", error.response.data);
-      setErrorMessage(
-        error.response.data.message ||
-          "Sign-in failed. Please check your credentials."
-      );
-    } else {
-      console.error("Sign-in error:", error.message);
-      setErrorMessage("An error occurred. Please try again.");
+
+    setMenuOpen(false);
+    setShowSignIn(true);
+    setShowSignUp(false);
+  };
+
+  const handleSignUpClick = async (event) => {
+    event.preventDefault();
+    setErrorMessage(""); // Reset error message on new attempt
+
+    try {
+      const response = await axios.post("http://localhost:2000/auth/signup", {
+        username,
+        email,
+        password,
+      });
+      if (response.status === 201) {
+        const { token, username } = response.data;
+        localStorage.setItem("token", token);
+        localStorage.setItem("username", username);
+        navigate("/dashboard", { state: { username } });
+      }
+    } catch (error) {
+      setIsSubmitted(false); // Set to false when there's an error
+      if (error.response) {
+        console.error("Sign-up error:", error.response.data);
+        setErrorMessage(
+          error.response.data.message ||
+            "Sign-up failed. Please check your details."
+        );
+      } else {
+        console.error("Sign-up error:", error.message);
+        setErrorMessage("An error occurred. Please try again.");
+      }
     }
-  }
 
-  setMenuOpen(false);
-  setShowSignIn(true);
-  setShowSignUp(false);
-};
-
-const handleSignUpClick = async (event) => {
-  event.preventDefault();
-  setErrorMessage(""); // Reset error message on new attempt
-
-  try {
-    const response = await axios.post("http://localhost:2000/auth/signup", {
-      username,
-      email,
-      password,
-    });
-    if (response.status === 201) {
-      const { token, username } = response.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("username", username);
-      navigate("/dashboard", { state: { username } });
-    }
-  } catch (error) {
-    setIsSubmitted(false); // Set to false when there's an error
-    if (error.response) {
-      console.error("Sign-up error:", error.response.data);
-      setErrorMessage(
-        error.response.data.message ||
-          "Sign-up failed. Please check your details."
-      );
-    } else {
-      console.error("Sign-up error:", error.message);
-      setErrorMessage("An error occurred. Please try again.");
-    }
-  }
-
-  setMenuOpen(false);
-  setShowSignUp(true);
-  setShowSignIn(false);
-};
-
+    setMenuOpen(false);
+    setShowSignUp(true);
+    setShowSignIn(false);
+  };
 
   const handleCloseForms = () => {
     setShowSignIn(false);
@@ -201,6 +226,12 @@ const handleSignUpClick = async (event) => {
     setIsDarkMode((prevMode) => !prevMode);
   };
 
+  // Function to speak the message
+  const handleSpeak = (message) => {
+    const speech = new SpeechSynthesisUtterance(message);
+    window.speechSynthesis.speak(speech);
+  };
+
   return (
     <div
       className={`min-h-screen w-full p-4 sm:p-6 ${
@@ -240,7 +271,7 @@ const handleSignUpClick = async (event) => {
                   isDarkMode
                     ? "bg-gray-800 border-gray-600"
                     : "bg-white border-gray-300"
-                }`}
+                } z-50`} // Add z-index here to bring it above other elements like the chat
               >
                 <button
                   onClick={toggleDarkMode}
@@ -263,6 +294,7 @@ const handleSignUpClick = async (event) => {
                 >
                   Login/Register
                 </button>
+
                 <button
                   onClick={handleClearChat}
                   className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
@@ -280,7 +312,7 @@ const handleSignUpClick = async (event) => {
 
         {/* Chat Content */}
         <div
-          className={`flex-grow overflow-y-auto flex flex-col ${
+          className={`flex-grow overflow-y-auto flex flex-col  ${
             showSignIn || showSignUp
               ? "items-center justify-center"
               : "items-stretch"
@@ -461,12 +493,11 @@ const handleSignUpClick = async (event) => {
                     </span>
                   </button>
                 </div>
-                {
-                  errorMessage && ( // Show only after form submit
-                    <p className="text-red-500 mt-2 text-center">
-                      {errorMessage}
-                    </p>
-                  )}
+                {errorMessage && ( // Show only after form submit
+                  <p className="text-red-500 mt-2 text-center">
+                    {errorMessage}
+                  </p>
+                )}
               </form>
             </div>
           )}
@@ -476,14 +507,14 @@ const handleSignUpClick = async (event) => {
             <>
               {isFirstVisit ? (
                 <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
-                  <DotLottieReact
+                  {/* <DotLottieReact
                     className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
                     src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
                     background="transparent"
                     speed="1"
                     loop
                     autoplay
-                  />
+                  /> */}
                   <div>
                     <p
                       className={`text-xl sm:text-2xl font-bold ${
@@ -526,15 +557,26 @@ const handleSignUpClick = async (event) => {
                         : "justify-start"
                     } mb-4`}
                   >
-                    <p
-                      className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
-                        message.sender === "user"
-                          ? "bg-green-500 text-white text-right"
-                          : "bg-gray-200 text-gray-800 text-left"
-                      }`}
-                    >
-                      {message.message}
-                    </p>
+                    <div className="relative inline-block">
+                      <p
+                        className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
+                          message.sender === "user"
+                            ? "bg-green-500 text-white text-right"
+                            : "bg-gray-200 text-gray-800 text-left"
+                        }`}
+                      >
+                        {message.message}
+                      </p>
+
+                      {message.sender === "bot" && (
+                        <button
+                          onClick={() => handleSpeak(message.message)}
+                          className="absolute bottom-0 right-0 mb-2 mr-2 flex items-center space-x-2 text-sm text-black hover:text-blue-800"
+                        >
+                          <SpeakerWaveIcon className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -581,13 +623,14 @@ const handleSignUpClick = async (event) => {
 // TypingIndicator Component
 const TypingIndicator = () => {
   return (
-    <div className="flex items-center justify-center">
-      <div className="dot animate-bounce bg-gray-500 rounded-full w-3 h-3 mx-1"></div>
-      <div className="dot animate-bounce bg-gray-500 rounded-full w-3 h-3 mx-1"></div>
-      <div className="dot animate-bounce bg-gray-500 rounded-full w-3 h-3 mx-1"></div>
+    <div className="flex items-center space-x-2">
+      <div className="h-2.5 w-2.5 rounded-full bg-gray-400 animate-pulse"></div>
+      <div className="h-2.5 w-2.5 rounded-full bg-gray-400 animate-pulse delay-200"></div>
+      <div className="h-2.5 w-2.5 rounded-full bg-gray-400 animate-pulse delay-400"></div>
     </div>
   );
 };
 
 
-export default Chatbot;
+
+export default HomePage;

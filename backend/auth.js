@@ -5,8 +5,15 @@ const jwt = require("jsonwebtoken");
 const User = require("./model");
 const Chat = require("./chat"); // MongoDB model
 
+
 const jwtSecret = process.env.JWT_SECRET;
 const router = express.Router();
+
+// Check if jwtSecret is defined
+if (!jwtSecret) {
+  console.error("JWT secret is missing from environment variables");
+  process.exit(1); // Stop the server if secret is missing
+}
 
 // Middleware to authenticate the user
 const authenticateJWT = (req, res, next) => {
@@ -104,18 +111,23 @@ router.post("/saveChat", async (req, res) => {
 });
 
 // Get chat history
+// backend/routes/chat.js
 router.get("/getChat/:userId", async (req, res) => {
+  const { userId } = req.params;
+
   try {
-    const chat = await Chat.findOne({ userId: req.params.userId });
+    const chat = await Chat.findOne({ userId });
     if (chat) {
-      res.status(200).json(chat);
+      res.status(200).json(chat.messages);
     } else {
-      res.status(404).json({ message: "No chat history found for this user" });
+      res.status(404).json({ message: "Chat not found." });
     }
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch chat history" });
+    console.error(error);
+    res.status(500).json({ message: "Error retrieving chat." });
   }
 });
+
 
 
 module.exports = router;
