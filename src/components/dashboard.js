@@ -4,6 +4,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai"; // Import the Genera
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { Bars3Icon, SpeakerWaveIcon, MicrophoneIcon, XMarkIcon } from "@heroicons/react/24/outline"; // for the menu icon
 import { useLocation, useNavigate } from "react-router-dom";
+import PlansAndSubscription from "./Plans";
+import ConnectDoctors from "./connectdoctors";
 
 const apiKey = "AIzaSyARFKpGvBEBbvmmmeHnB_cGuXppt9EmU_g";
 const genAI = new GoogleGenerativeAI(apiKey);
@@ -36,7 +38,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
   // New states for form inputs
   const [username, setUsername] = useState("User");
-
+  const [showPlans, setShowPlans] = useState(false); // State to toggle between views
+  const [messageCount, setMessageCount] = useState(0); // Track the number of messages sent
+  const MAX_MESSAGES = 20;
   const fetchUsername = async (token) => {
     try {
       const response = await axios.get("http://localhost:2000/auth/username", {
@@ -69,13 +73,13 @@ const Dashboard = () => {
   }, [chat]);
 
   const handleSend = async () => {
-    if (input.trim()) {
+    if (input.trim() && messageCount < MAX_MESSAGES) {
       setIsFirstVisit(false);
       const newMessage = { sender: "user", message: input };
       setChat([...chat, newMessage]);
       setInput("");
+      setMessageCount((prevCount) => prevCount + 1); // Increment the message count
 
-      // Save the chat to the database
       const token = localStorage.getItem("token");
       const userId = "some-user-id"; // Replace with the actual userId
 
@@ -89,7 +93,6 @@ const Dashboard = () => {
         console.error("Error saving chat:", error);
       }
 
-      // Show typing indicator and AI response
       setIsTyping(true);
       setTimeout(async () => {
         try {
@@ -108,13 +111,11 @@ const Dashboard = () => {
           const botMessage =
             result.response.text() || "Sorry, I didn’t understand that.";
 
-          // Update the chat with the bot's response
           setChat((prevChat) => [
             ...prevChat,
             { sender: "bot", message: botMessage },
           ]);
 
-          // Save bot's response to MongoDB as well
           await axios.post("http://localhost:2000/chat/saveChat", {
             userId,
             sender: "bot",
@@ -124,18 +125,15 @@ const Dashboard = () => {
           console.error("Error fetching response:", error);
           setChat((prevChat) => [
             ...prevChat,
-            {
-              sender: "bot",
-              message: "Sorry, something went wrong. Please try again later.",
-            },
           ]);
         } finally {
           setIsTyping(false);
         }
       }, 2000);
+    } else if (messageCount >= MAX_MESSAGES) {
+      console.log("You have reached the maximum number of messages allowed.");
     }
   };
-
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -165,97 +163,186 @@ const Dashboard = () => {
     window.speechSynthesis.speak(speech);
   };
 
+  const handleDownloadChat = () => {
+    const chatContent = chat
+      .map((message) => `${message.sender}: ${message.message}`)
+      .join("\n\n");
+    const blob = new Blob([chatContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "chat_report.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const [alertMessage, setAlertMessage] = useState(""); // Store the alert message
 
-     const handleDownloadChat = () => {
-       const chatContent = chat
-         .map((message) => `${message.sender}: ${message.message}`)
-         .join("\n\n");
-       const blob = new Blob([chatContent], { type: "text/plain" });
-       const url = URL.createObjectURL(blob);
-       const link = document.createElement("a");
-       link.href = url;
-       link.download = "chat_report.txt";
-       link.click();
-       URL.revokeObjectURL(url);
-     };
-     
-
-   const [audioBlob, setAudioBlob] = useState(null);
-   const [audioURL, setAudioURL] = useState(null);
-   const [isRecording, setIsRecording] = useState(false);
-   const mediaRecorderRef = useRef(null);
-   const audioChunks = useRef([]);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioURL, setAudioURL] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunks = useRef([]);
+  const [showDoctors, setShowDoctors] = useState(false);
+  const assemblyaiApiKey = "ddcf202f5f4341cf841589f872c343a2"; // Replace with your AssemblyAI API key
+  const languageDetectionApiKey = "4ec5dfc9d33a4f3936bb8c8a9e673658"; // Replace with your language detection API key
 
   const toggleRecording = async () => {
     if (isRecording) {
-      // Stop recording and set the audio preview instantly
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     } else {
-      // Start the recording
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunks.current.push(event.data);
-      };
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        setAudioURL(audioUrl); // Set the audio preview immediately
-        setAudioBlob(audioBlob); // Save the audio blob for sending
-        audioChunks.current = []; // Clear audio chunks
-      };
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-    }
-  };
-
-  const handleSendAudioMessage = async () => {
-    if (audioBlob) {
-      setIsTyping(true);
-
-      const formData = new FormData();
-      formData.append("audio", audioBlob);
-
       try {
-        const response = await axios.post(
-          "http://localhost:2000/chat/audio",
-          formData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
-        );
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        mediaRecorderRef.current = new MediaRecorder(stream);
 
-        const botMessage =
-          response.data.message || "Sorry, I didn’t understand that.";
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          console.log("Data available:", event.data); // Log the audio data
+          audioChunks.current.push(event.data);
+        };
 
-        // Add both user audio message and bot reply to the chat
-        setChat((prevChat) => [
-          ...prevChat,
-          {
-            sender: "user",
-            message: "Audio message sent",
-            audioUrl: audioURL, // This will be the audio URL generated
-          },
-          { sender: "bot", message: botMessage },
-        ]);
+        mediaRecorderRef.current.onstop = () => {
+          console.log("Recording stopped."); // Log when recording stops
+          const audioBlob = new Blob(audioChunks.current, {
+            type: "audio/wav",
+          });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          setAudioURL(audioUrl);
+          setAudioBlob(audioBlob);
+          audioChunks.current = [];
+          console.log("Audio Blob created:", audioBlob); // Log the created audio blob
+        };
+
+        mediaRecorderRef.current.start();
+        console.log("Recording started."); // Log when recording starts
+        setIsRecording(true);
       } catch (error) {
-        console.error("Error sending audio:", error);
-        setChat((prevChat) => [
-          ...prevChat,
-          {
-            sender: "bot",
-            message: "Sorry, something went wrong. Please try again later.",
-          },
-        ]);
-      } finally {
-        setIsTyping(false);
-        setAudioBlob(null); // Clear audioBlob after sending
-        setAudioURL(null); // Reset audio URL after sending
+        console.error("Error accessing microphone:", error);
       }
     }
   };
 
+  const transcribeAudio = async (audioBlob) => {
+    const formData = new FormData();
+    formData.append("file", audioBlob);
+
+    try {
+      const uploadResponse = await axios.post(
+        "https://api.assemblyai.com/v2/upload",
+        formData,
+        {
+          headers: {
+            authorization: assemblyaiApiKey,
+            "content-type": "application/json",
+          },
+        }
+      );
+
+      const transcriptionResponse = await axios.post(
+        "https://api.assemblyai.com/v2/transcript",
+        { audio_url: uploadResponse.data.upload_url },
+        {
+          headers: {
+            authorization: assemblyaiApiKey,
+          },
+        }
+      );
+
+      const transcriptId = transcriptionResponse.data.id;
+      let transcriptionResult;
+
+      do {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const resultResponse = await axios.get(
+          `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
+          {
+            headers: {
+              authorization: assemblyaiApiKey,
+            },
+          }
+        );
+        transcriptionResult = resultResponse.data;
+      } while (transcriptionResult.status === "processing");
+
+      return transcriptionResult.text;
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
+      return null;
+    }
+  };
+
+  const detectLanguage = async (text) => {
+    try {
+      const response = await axios.post(
+        "https://translation.googleapis.com/language/translate/v2/detect",
+        {
+          q: text,
+          key: languageDetectionApiKey,
+        }
+      );
+      return response.data.data.detections[0][0].language;
+    } catch (error) {
+      console.error("Error detecting language:", error);
+      return "en"; // Default to English if detection fails
+    }
+  };
+
+  const getBotResponse = async (text, language) => {
+    const chatSession = model.startChat({
+      generationConfig,
+      history: [
+        { role: "user", parts: [{ text }] },
+        ...chat.map((message) => ({
+          role: message.sender === "user" ? "user" : "model",
+          parts: [{ text: message.message }],
+        })),
+      ],
+    });
+
+    const result = await chatSession.sendMessage(text);
+    return result.response.text() || "Sorry, I didn’t understand that.";
+  };
+
+  const handleSendAudioMessage = async (audioBlob) => {
+    if (audioBlob) {
+      setIsTyping(true);
+
+      const transcribedText = await transcribeAudio(audioBlob);
+      if (!transcribedText) {
+        setChat((prevChat) => [
+          ...prevChat,
+          { sender: "bot", message: "Sorry, I couldn't understand the audio." },
+        ]);
+        setIsTyping(false);
+        return;
+      }
+
+      const detectedLanguage = await detectLanguage(transcribedText);
+      const botMessage = await getBotResponse(
+        transcribedText,
+        detectedLanguage
+      );
+
+      setChat((prevChat) => [
+        ...prevChat,
+        { sender: "user", message: "Audio message sent", audioUrl: audioURL },
+        { sender: "bot", message: botMessage },
+      ]);
+
+      setAudioBlob(null);
+      setAudioURL(null);
+      setIsTyping(false);
+    }
+  };
+  
+  const handleClosePlans = () => {
+    setShowPlans(false); // Close the Plans page
+  };
+
+  const handleCloseDoctors = () => {
+    setShowDoctors(false);
+  };
   return (
     <div
       className={`min-h-screen w-full p-4 sm:p-6 ${
@@ -336,6 +423,26 @@ const Dashboard = () => {
                   }`}
                 >
                   Download Chat
+                </button>{" "}
+                <button
+                  onClick={() => setShowDoctors(true)}
+                  className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
+                    isDarkMode
+                      ? "text-white hover:bg-gray-700"
+                      : "text-green-600 hover:bg-gray-100"
+                  }`}
+                >
+                  Connect Doctor
+                </button>
+                <button
+                  onClick={() => setShowPlans(true)} // Show plans when clicked
+                  className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left${
+                    isDarkMode
+                      ? "text-white hover:bg-gray-700"
+                      : "text-green-600 hover:bg-gray-100"
+                  }`}
+                >
+                  Upgrade Premium
                 </button>
               </div>
             )}
@@ -343,167 +450,215 @@ const Dashboard = () => {
         </div>
 
         {/* Chat Content */}
-        <div
-          className={`flex-grow overflow-y-auto flex flex-col ${
-            showSignIn || showSignUp
-              ? "items-center justify-center"
-              : "items-stretch"
-          }`}
-        >
-          {/* Display Chat Messages or Intro */}
-          {!showSignIn && !showSignUp && (
-            <>
-              {isFirstVisit ? (
-                <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
-                  {/* <DotLottieReact
-                    className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
-                    src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
-                    background="transparent"
-                    speed="1"
-                    loop
-                    autoplay
-                  /> */}
-                  <div>
-                    <p
-                      className={`text-xl sm:text-2xl font-bold ${
-                        isDarkMode ? "text-green-300" : "text-green-700"
-                      }`}
-                    >
-                      Hello {username}
-                    </p>
+        {showPlans ? (
+          <div className="relative">
+            <button
+              onClick={handleClosePlans} // Close the plans page when the close button is clicked
+              className=" text-white bg-gray-500 p-2 rounded-full"
+            >
+              Close
+            </button>
+            <PlansAndSubscription />
+          </div>
+        ) : showDoctors ? (
+          <div className="relative">
+            <button
+              onClick={handleCloseDoctors} // Close the doctors page when the close button is clicked
+              className="items-center text-white bg-gray-500 p-2 rounded-full"
+            >
+              Close
+            </button>
+            <ConnectDoctors />
+          </div>
+        ) : (
+          <div
+            className={`flex-grow overflow-y-auto flex flex-col ${
+              showSignIn || showSignUp
+                ? "items-center justify-center"
+                : "items-stretch"
+            }`}
+          >
+            {/* Display Chat Messages or Intro */}
+            {!showSignIn && !showSignUp && (
+              <>
+                {isFirstVisit ? (
+                  <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
+                    {/* <DotLottieReact
+              className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
+              src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
+              background="transparent"
+              speed="1"
+              loop
+              autoplay
+            /> */}
+                    <div>
+                      <p
+                        className={`text-xl sm:text-2xl font-bold ${
+                          isDarkMode ? "text-green-300" : "text-green-700"
+                        }`}
+                      >
+                        Hello {username}
+                      </p>
 
-                    <p
-                      className={`text-xl sm:text-xl mt-3 font-semibold ${
-                        isDarkMode ? "text-white" : "text-gray-800"
-                      }`}
-                    >
-                      Welcome to Calmly - Your AI Therapist
-                    </p>
+                      <p
+                        className={`text-xl sm:text-xl mt-3 font-semibold ${
+                          isDarkMode ? "text-white" : "text-gray-800"
+                        }`}
+                      >
+                        Welcome to Calmly - Your AI Therapist
+                      </p>
 
-                    <p
-                      className={`text-base sm:text-lg font-medium mt-2 ${
-                        isDarkMode ? "text-green-400" : "text-green-600"
-                      }`}
-                    >
-                      How do you feel today?
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                chat.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${
-                      message.sender === "user"
-                        ? "justify-end"
-                        : "justify-start"
-                    } mb-4`}
-                  >
-                    <div className="relative inline-block">
-                      {message.audioUrl ? (
-                        <audio
-                          controls
-                          src={message.audioUrl}
-                          className="mr-4"
-                        />
-                      ) : (
-                        <p
-                          className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
-                            message.sender === "user"
-                              ? "bg-green-500 text-white text-right"
-                              : "bg-gray-200 text-gray-800 text-left"
-                          }`}
-                        >
-                          {message.message}
-                        </p>
-                      )}
-
-                      {message.sender === "bot" && (
-                        <button
-                          onClick={() => handleSpeak(message.message)}
-                          className="absolute bottom-0 right-0 mb-2 mr-2 flex items-center space-x-2 text-sm text-black hover:text-blue-800"
-                        >
-                          <SpeakerWaveIcon className="h-5 w-5" />
-                        </button>
-                      )}
+                      <p
+                        className={`text-base sm:text-lg font-medium mt-2 ${
+                          isDarkMode ? "text-green-400" : "text-green-600"
+                        }`}
+                      >
+                        How do you feel today?
+                      </p>
                     </div>
                   </div>
-                ))
-              )}
+                ) : (
+                  chat.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${
+                        message.sender === "user"
+                          ? "justify-end"
+                          : "justify-start"
+                      } mb-4`}
+                    >
+                      <div className="relative inline-block">
+                        {message.audioUrl ? (
+                          <audio
+                            controls
+                            src={message.audioUrl}
+                            className="mr-4"
+                          />
+                        ) : (
+                          <p
+                            className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
+                              message.sender === "user"
+                                ? "bg-green-500 text-white text-right"
+                                : "bg-gray-200 text-gray-800 text-left"
+                            }`}
+                          >
+                            {message.message}
+                          </p>
+                        )}
 
-              {isTyping && (
-                <div className="flex justify-start mb-2">
-                  <div className="inline-block px-4 py-2 rounded-lg bg-gray-200 text-gray-800">
-                    <TypingIndicator />
+                        {message.sender === "bot" && (
+                          <button
+                            onClick={() => handleSpeak(message.message)}
+                            className="absolute bottom-0 right-0 mb-2 mr-2 flex items-center space-x-2 text-sm text-black hover:text-blue-800"
+                          >
+                            <SpeakerWaveIcon className="h-5 w-5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {isTyping && (
+                  <div className="flex justify-start mb-2">
+                    <div className="inline-block px-4 py-2 rounded-lg bg-gray-200 text-gray-800">
+                      <TypingIndicator />
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
+                )}
+              </>
+            )}
+            {messageCount >= MAX_MESSAGES && (
+              <div className="text-red-600 font-semibold text-sm mt-2">
+                You have exceeded the Daily maximum message limit.{" "}
+                <button
+                  onClick={() => setShowPlans(true)}
+                  className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
+                    isDarkMode
+                      ? "bg-green-700 text-gray-200 hover:bg-green-600"
+                      : "bg-green-600 text-white hover:bg-green-500"
+                  }`}
+                >
+                  Upgrade
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {/* Input and Send Button */}
-        <div className="w-full flex items-center mt-4">
-          {audioURL ? (
-            // Audio preview section
-            <div className="flex space-x-2 items-center">
-              <audio controls src={audioURL} className="border rounded p-2" />
-              <button
-                onClick={() => setAudioURL(null)}
-                className="focus:outline-none"
-              >
-                <XMarkIcon
-                  className={`h-6 w-6 ${
-                    isDarkMode ? "text-gray-200" : "text-gray-800"
-                  } hover:text-red-500`}
-                />
-              </button>
-              <button
-                onClick={handleSendAudioMessage}
-                className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
-                  isDarkMode
-                    ? "bg-green-700 text-gray-200 hover:bg-green-600"
-                    : "bg-green-600 text-white hover:bg-green-500"
-                }`}
-              >
-                Send
-              </button>
-            </div>
-          ) : (
-            // Text input section
-            <>
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your message..."
-                className={`flex-grow px-4 py-2 sm:py-3 mr-2 border border-gray-300 rounded-full focus:outline-none shadow-sm ${
-                  isDarkMode
-                    ? "bg-gray-700 text-white"
-                    : "bg-white text-gray-800"
-                }`}
-              />
-              <button onClick={toggleRecording} className="focus:outline-none">
-                <MicrophoneIcon
-                  className={`h-8 w-8 ${
-                    isRecording ? "text-red-500" : "text-green-600"
+        {!showPlans && !showDoctors && (
+          <div className="w-full flex items-center mt-4">
+            {audioURL ? (
+              // Audio preview section
+              <div className="flex space-x-2 items-center">
+                {audioURL && (
+                  <audio controls>
+                    <source src={audioURL} type="audio/wav" />
+                    Your browser does not support the audio element.
+                  </audio>
+                )}
+                <button
+                  onClick={() => setAudioURL(null)}
+                  className="focus:outline-none"
+                >
+                  <XMarkIcon
+                    className={`h-6 w-6 ${
+                      isDarkMode ? "text-gray-200" : "text-gray-800"
+                    } hover:text-red-500`}
+                  />
+                </button>
+
+                <button
+                  onClick={handleSendAudioMessage}
+                  className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
+                    isDarkMode
+                      ? "bg-green-700 text-gray-200 hover:bg-green-600"
+                      : "bg-green-600 text-white hover:bg-green-500"
+                  }`}
+                >
+                  Send
+                </button>
+              </div>
+            ) : (
+              // Text input section
+              <>
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your message..."
+                  className={`flex-grow px-4 py-2 sm:py-3 mr-2 border border-gray-300 rounded-full focus:outline-none shadow-sm ${
+                    isDarkMode
+                      ? "bg-gray-700 text-white"
+                      : "bg-white text-gray-800"
                   }`}
                 />
-              </button>
-              <button
-                onClick={handleSend}
-                className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
-                  isDarkMode
-                    ? "bg-green-700 text-gray-200 hover:bg-green-600"
-                    : "bg-green-600 text-white hover:bg-green-500"
-                }`}
-              >
-                Send
-              </button>
-            </>
-          )}
-        </div>
+
+                <button
+                  onClick={toggleRecording}
+                  className="focus:outline-none p-2"
+                >
+                  <MicrophoneIcon
+                    className={`h-6 w-6 ${
+                      isRecording ? "text-red-500" : "text-green-600"
+                    }`}
+                  />
+                </button>
+                <button
+                  onClick={handleSend}
+                  className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
+                    isDarkMode
+                      ? "bg-green-700 text-gray-200 hover:bg-green-600"
+                      : "bg-green-600 text-white hover:bg-green-500"
+                  }`}
+                >
+                  Send
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

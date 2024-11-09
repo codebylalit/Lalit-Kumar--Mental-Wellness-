@@ -46,6 +46,8 @@ const HomePage = () => {
   const [errorMessage, setErrorMessage] = useState(""); // State to hold error messages
   const [isSubmitted, setIsSubmitted] = useState(false); // Track submission
   const [isRecording, setIsRecording] = useState(false);
+  const MAX_MESSAGES = 20;
+  const [messageCount, setMessageCount] = useState(0); // Track the number of messages sent
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -541,14 +543,14 @@ const HomePage = () => {
             <>
               {isFirstVisit ? (
                 <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
-                  {/* <DotLottieReact
+                  <DotLottieReact
                     className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
                     src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
                     background="transparent"
                     speed="1"
                     loop
                     autoplay
-                  /> */}
+                  />
                   <div>
                     <p
                       className={`text-xl sm:text-2xl font-bold ${
@@ -622,6 +624,22 @@ const HomePage = () => {
                   </div>
                 </div>
               )}
+              {messageCount >= MAX_MESSAGES && (
+                <div className="text-red-600 font-semibold text-sm mt-2">
+                  You have exceeded the Daily maximum message limit.{" "}
+                  <button
+                    // onClick={() => setShowPlans(true)}
+                    className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
+                      isDarkMode
+                        ? "bg-green-700 text-gray-200 hover:bg-green-600"
+                        : "bg-green-600 text-white hover:bg-green-500"
+                    }`}
+                  >
+                    Upgrade
+                  </button>
+                </div>
+              )}
+              
             </>
           )}
         </div>
