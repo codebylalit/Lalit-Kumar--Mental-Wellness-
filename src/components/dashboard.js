@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai"; // Import the Generative AI package
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Bars3Icon, SpeakerWaveIcon } from "@heroicons/react/24/outline"; // for the menu icon
+import { Bars3Icon, SpeakerWaveIcon, MicrophoneIcon, XMarkIcon } from "@heroicons/react/24/outline"; // for the menu icon
 import { useLocation, useNavigate } from "react-router-dom";
 
 const apiKey = "AIzaSyARFKpGvBEBbvmmmeHnB_cGuXppt9EmU_g";
@@ -165,6 +165,97 @@ const Dashboard = () => {
     window.speechSynthesis.speak(speech);
   };
 
+
+     const handleDownloadChat = () => {
+       const chatContent = chat
+         .map((message) => `${message.sender}: ${message.message}`)
+         .join("\n\n");
+       const blob = new Blob([chatContent], { type: "text/plain" });
+       const url = URL.createObjectURL(blob);
+       const link = document.createElement("a");
+       link.href = url;
+       link.download = "chat_report.txt";
+       link.click();
+       URL.revokeObjectURL(url);
+     };
+     
+
+   const [audioBlob, setAudioBlob] = useState(null);
+   const [audioURL, setAudioURL] = useState(null);
+   const [isRecording, setIsRecording] = useState(false);
+   const mediaRecorderRef = useRef(null);
+   const audioChunks = useRef([]);
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      // Stop recording and set the audio preview instantly
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    } else {
+      // Start the recording
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunks.current.push(event.data);
+      };
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setAudioURL(audioUrl); // Set the audio preview immediately
+        setAudioBlob(audioBlob); // Save the audio blob for sending
+        audioChunks.current = []; // Clear audio chunks
+      };
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    }
+  };
+
+  const handleSendAudioMessage = async () => {
+    if (audioBlob) {
+      setIsTyping(true);
+
+      const formData = new FormData();
+      formData.append("audio", audioBlob);
+
+      try {
+        const response = await axios.post(
+          "http://localhost:2000/chat/audio",
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
+
+        const botMessage =
+          response.data.message || "Sorry, I didn’t understand that.";
+
+        // Add both user audio message and bot reply to the chat
+        setChat((prevChat) => [
+          ...prevChat,
+          {
+            sender: "user",
+            message: "Audio message sent",
+            audioUrl: audioURL, // This will be the audio URL generated
+          },
+          { sender: "bot", message: botMessage },
+        ]);
+      } catch (error) {
+        console.error("Error sending audio:", error);
+        setChat((prevChat) => [
+          ...prevChat,
+          {
+            sender: "bot",
+            message: "Sorry, something went wrong. Please try again later.",
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
+        setAudioBlob(null); // Clear audioBlob after sending
+        setAudioURL(null); // Reset audio URL after sending
+      }
+    }
+  };
+
   return (
     <div
       className={`min-h-screen w-full p-4 sm:p-6 ${
@@ -237,14 +328,14 @@ const Dashboard = () => {
                   Logout
                 </button>
                 <button
-                  onClick={handlelogout}
+                  onClick={handleDownloadChat}
                   className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
                     isDarkMode
                       ? "text-white hover:bg-gray-700"
                       : "text-green-600 hover:bg-gray-100"
                   }`}
                 >
-                  Chat History
+                  Download Chat
                 </button>
               </div>
             )}
@@ -309,15 +400,23 @@ const Dashboard = () => {
                     } mb-4`}
                   >
                     <div className="relative inline-block">
-                      <p
-                        className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
-                          message.sender === "user"
-                            ? "bg-green-500 text-white text-right"
-                            : "bg-gray-200 text-gray-800 text-left"
-                        }`}
-                      >
-                        {message.message}
-                      </p>
+                      {message.audioUrl ? (
+                        <audio
+                          controls
+                          src={message.audioUrl}
+                          className="mr-4"
+                        />
+                      ) : (
+                        <p
+                          className={`inline-block px-4 py-2 rounded-lg max-w-xs ${
+                            message.sender === "user"
+                              ? "bg-green-500 text-white text-right"
+                              : "bg-gray-200 text-gray-800 text-left"
+                          }`}
+                        >
+                          {message.message}
+                        </p>
+                      )}
 
                       {message.sender === "bot" && (
                         <button
@@ -345,26 +444,65 @@ const Dashboard = () => {
 
         {/* Input and Send Button */}
         <div className="w-full flex items-center mt-4">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            className={`flex-grow px-4 py-2 sm:py-3 mr-2 border border-gray-300 rounded-full focus:outline-none shadow-sm ${
-              isDarkMode ? "bg-gray-700 text-white" : "bg-white text-gray-800"
-            }`}
-          />
-          <button
-            onClick={handleSend}
-            className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
-              isDarkMode
-                ? "bg-green-700 text-gray-200 hover:bg-green-600" // Dark mode styles
-                : "bg-green-600 text-white hover:bg-green-500" // Light mode styles
-            }`}
-          >
-            Send
-          </button>
+          {audioURL ? (
+            // Audio preview section
+            <div className="flex space-x-2 items-center">
+              <audio controls src={audioURL} className="border rounded p-2" />
+              <button
+                onClick={() => setAudioURL(null)}
+                className="focus:outline-none"
+              >
+                <XMarkIcon
+                  className={`h-6 w-6 ${
+                    isDarkMode ? "text-gray-200" : "text-gray-800"
+                  } hover:text-red-500`}
+                />
+              </button>
+              <button
+                onClick={handleSendAudioMessage}
+                className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
+                  isDarkMode
+                    ? "bg-green-700 text-gray-200 hover:bg-green-600"
+                    : "bg-green-600 text-white hover:bg-green-500"
+                }`}
+              >
+                Send
+              </button>
+            </div>
+          ) : (
+            // Text input section
+            <>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message..."
+                className={`flex-grow px-4 py-2 sm:py-3 mr-2 border border-gray-300 rounded-full focus:outline-none shadow-sm ${
+                  isDarkMode
+                    ? "bg-gray-700 text-white"
+                    : "bg-white text-gray-800"
+                }`}
+              />
+              <button onClick={toggleRecording} className="focus:outline-none">
+                <MicrophoneIcon
+                  className={`h-8 w-8 ${
+                    isRecording ? "text-red-500" : "text-green-600"
+                  }`}
+                />
+              </button>
+              <button
+                onClick={handleSend}
+                className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
+                  isDarkMode
+                    ? "bg-green-700 text-gray-200 hover:bg-green-600"
+                    : "bg-green-600 text-white hover:bg-green-500"
+                }`}
+              >
+                Send
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -2,7 +2,11 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai"; // Import the Generative AI package
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Bars3Icon, SpeakerWaveIcon } from "@heroicons/react/24/outline"; // for the menu icon
+import {
+  Bars3Icon,
+  SpeakerWaveIcon,
+  MicrophoneIcon,
+} from "@heroicons/react/24/outline"; // for the menu icon
 import { useNavigate } from "react-router-dom";
 
 
@@ -41,6 +45,7 @@ const HomePage = () => {
   const [username, setUsername] = useState(""); // For Sign-Up form
   const [errorMessage, setErrorMessage] = useState(""); // State to hold error messages
   const [isSubmitted, setIsSubmitted] = useState(false); // Track submission
+  const [isRecording, setIsRecording] = useState(false);
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -55,30 +60,6 @@ const HomePage = () => {
     localStorage.setItem("chatHistory", JSON.stringify(chat));
   }, [chat]);
 
-  // Function to handle tag click and send predefined message
-  const handleFeelingTagClick = (feeling) => {
-    const responseMessages = {
-      stressed:
-        "It seems like you're feeling stressed. Take a deep breath. Let's focus on something calming.",
-      anxious:
-        "Anxiety can be overwhelming. Try some deep breathing exercises. It's okay to take it slow.",
-      sad: "I'm sorry you're feeling sad. It might help to talk about it. I'm here to listen.",
-      happy:
-        "It's great to hear that you're feeling happy! Celebrate those moments of joy!",
-    };
-
-    const responseMessage =
-      responseMessages[feeling] ||
-      "I'm here to help. Feel free to share how you're feeling.";
-
-    setChat([...chat, { sender: "user", message: feeling }]);
-    setChat((prevChat) => [
-      ...prevChat,
-      { sender: "bot", message: responseMessage },
-    ]);
-  };
-
-  
   const handleSignInClick = async (event) => {
     event.preventDefault();
     setErrorMessage(""); // Reset error message on new attempt
@@ -226,10 +207,53 @@ const HomePage = () => {
     setIsDarkMode((prevMode) => !prevMode);
   };
 
+  const handleDownloadChat = () => {
+    const chatContent = chat
+      .map((message) => `${message.sender}: ${message.message}`)
+      .join("\n\n");
+    const blob = new Blob([chatContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "chat_report.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Function to speak the message
   const handleSpeak = (message) => {
     const speech = new SpeechSynthesisUtterance(message);
     window.speechSynthesis.speak(speech);
+  };
+
+  // Speech Recognition Setup
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = "en-US";
+
+  const handleVoiceInput = () => {
+    if (isRecording) {
+      recognition.stop();
+      setIsRecording(false);
+    } else {
+      recognition.start();
+      setIsRecording(true);
+    }
+  };
+
+  recognition.onresult = (event) => {
+    const speechResult = event.results[0][0].transcript;
+    setInput(speechResult); // Set the speech result as input
+    setIsRecording(false);
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Speech recognition error:", event.error);
+    setIsRecording(false);
   };
 
   return (
@@ -304,6 +328,16 @@ const HomePage = () => {
                   }`}
                 >
                   Clear Chat
+                </button>
+                <button
+                  onClick={handleDownloadChat}
+                  className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
+                    isDarkMode
+                      ? "text-white hover:bg-gray-700"
+                      : "text-green-600 hover:bg-gray-100"
+                  }`}
+                >
+                  Download Chat
                 </button>
               </div>
             )}
@@ -604,6 +638,13 @@ const HomePage = () => {
               isDarkMode ? "bg-gray-700 text-white" : "bg-white text-gray-800"
             }`}
           />
+          <button onClick={handleVoiceInput} className="p-2">
+            <MicrophoneIcon
+              className={`h-6 w-6 ${
+                isRecording ? "text-red-500" : "text-green-500"
+              }`}
+            />
+          </button>
           <button
             onClick={handleSend}
             className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded-full transition duration-200 shadow-md ${
