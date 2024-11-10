@@ -299,11 +299,21 @@ const HomePage = () => {
  // Handle errors in speech recognition
  recognition.onerror = (event) => {
    console.error("Speech recognition error:", event.error);
-   if (event.error === "no-speech" && isRecording) {
+
+   if (event.error === "no-speech") {
+      console.log("No speech detected. Please try again.");
+   } else if (event.error === "audio-capture") {
      console.log(
-       "No speech detected. Please try speaking louder or closer to the microphone."
+       "No microphone was found. Please ensure that a microphone is connected."
      );
-     recognition.start(); // Automatically restart if recording is active
+   } else if (event.error === "not-allowed") {
+     console.log(
+       "Microphone access was denied. Please allow access to the microphone."
+     );
+   } else {
+      console.log(
+        "An error occurred during speech recognition. Please try again."
+      );
    }
  };
 
