@@ -483,14 +483,14 @@ const Dashboard = () => {
               <>
                 {isFirstVisit ? (
                   <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
-                    {/* <DotLottieReact
+                    <DotLottieReact
               className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
               src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
               background="transparent"
               speed="1"
               loop
               autoplay
-            /> */}
+            />
                     <div>
                       <p
                         className={`text-xl sm:text-2xl font-bold ${
