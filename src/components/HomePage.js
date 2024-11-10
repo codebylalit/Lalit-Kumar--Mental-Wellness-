@@ -48,6 +48,8 @@ const HomePage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const MAX_MESSAGES = 20;
   const [messageCount, setMessageCount] = useState(0); // Track the number of messages sent
+  const [showPlans, setShowPlans] = useState(false); // State to toggle between views
+  const [showDoctors, setShowDoctors] = useState(false);
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -341,6 +343,26 @@ const HomePage = () => {
                 >
                   Download Chat
                 </button>
+                <button
+                  onClick={handleSignUpClick}
+                  className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
+                    isDarkMode
+                      ? "text-white hover:bg-gray-700"
+                      : "text-green-600 hover:bg-gray-100"
+                  }`}
+                >
+                  Connect Doctor
+                </button>
+                <button
+                  onClick={handleSignUpClick} // Show plans when clicked
+                  className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left${
+                    isDarkMode
+                      ? "text-white hover:bg-gray-700"
+                      : "text-green-600 hover:bg-gray-100"
+                  }`}
+                >
+                  Upgrade Premium
+                </button>
               </div>
             )}
           </div>
@@ -543,14 +565,14 @@ const HomePage = () => {
             <>
               {isFirstVisit ? (
                 <div className="flex flex-col items-center justify-center text-center text-gray-800 p-4 space-y-2">
-                  <DotLottieReact
+                  {/* <DotLottieReact
                     className="w-40 h-40 sm:w-64 sm:h-64 mb-4"
                     src="https://lottie.host/a81c850f-2a40-4f85-9f76-6f4ec3e3cbcb/X4U4NURe1a.json"
                     background="transparent"
                     speed="1"
                     loop
                     autoplay
-                  />
+                  /> */}
                   <div>
                     <p
                       className={`text-xl sm:text-2xl font-bold ${
@@ -639,7 +661,6 @@ const HomePage = () => {
                   </button>
                 </div>
               )}
-              
             </>
           )}
         </div>

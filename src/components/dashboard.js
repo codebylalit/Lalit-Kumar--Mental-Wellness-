@@ -175,8 +175,8 @@ const Dashboard = () => {
     link.click();
     URL.revokeObjectURL(url);
   };
-  const [alertMessage, setAlertMessage] = useState(""); // Store the alert message
 
+  const [alertMessage, setAlertMessage] = useState(""); // Store the alert message
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioURL, setAudioURL] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -335,7 +335,7 @@ const Dashboard = () => {
       setIsTyping(false);
     }
   };
-  
+
   const handleClosePlans = () => {
     setShowPlans(false); // Close the Plans page
   };
