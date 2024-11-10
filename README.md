@@ -3,7 +3,6 @@
 Video Link : [Introduction to AI Chatbot Features 🤖](https://www.google.com/url?q=https://www.loom.com/share/51228417bfe545e7b9b5278a140c01cc?sid%3D29588c68-e950-4d4c-8dc4-7d2dbd5e3415%2527&sa=D&source=docs&ust=1731220857383532&usg=AOvVaw2SMO85MKuF43lsw_IyiJq0)
 Deploy Link : [React App](https://lalit-kumar-mental-wellness.vercel.app/)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
 
