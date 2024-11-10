@@ -50,6 +50,8 @@ const HomePage = () => {
   const [messageCount, setMessageCount] = useState(0); // Track the number of messages sent
   const [showPlans, setShowPlans] = useState(false); // State to toggle between views
   const [showDoctors, setShowDoctors] = useState(false);
+  const [audioURL, setAudioURL] = useState(null);
+  const [transcribedText, setTranscribedText] = useState("");
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -230,35 +232,91 @@ const HomePage = () => {
     window.speechSynthesis.speak(speech);
   };
 
-  // Speech Recognition Setup
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
+ const handleSendAudioMessage = async (text) => {
+   if (text) {
+     setIsTyping(true);
 
-  recognition.continuous = false;
-  recognition.interimResults = false;
-  recognition.lang = "en-US";
+     try {
+       const chatSession = model.startChat({
+         generationConfig,
+         history: [
+           { role: "user", parts: [{ text }] },
+           ...chat.map((message) => ({
+             role: message.sender === "user" ? "user" : "model",
+             parts: [{ text: message.message }],
+           })),
+         ],
+       });
 
-  const handleVoiceInput = () => {
-    if (isRecording) {
-      recognition.stop();
-      setIsRecording(false);
-    } else {
-      recognition.start();
-      setIsRecording(true);
-    }
-  };
+       const result = await chatSession.sendMessage(text);
+       const botMessage =
+         result.response.text() || "Sorry, I didn’t understand that.";
 
-  recognition.onresult = (event) => {
-    const speechResult = event.results[0][0].transcript;
-    setInput(speechResult); // Set the speech result as input
-    setIsRecording(false);
-  };
+       setChat((prevChat) => [
+         ...prevChat,
+         { sender: "user", message: text },
+         { sender: "bot", message: botMessage },
+       ]);
+     } catch (error) {
+       console.error("Error fetching response:", error);
+       setChat((prevChat) => [
+         ...prevChat,
+         { sender: "user", message: text },
+         {
+           sender: "bot",
+           message: "Sorry, something went wrong. Please try again later.",
+         },
+       ]);
+     } finally {
+       setIsTyping(false);
+     }
+   }
+ };
 
-  recognition.onerror = (event) => {
-    console.error("Speech recognition error:", event.error);
-    setIsRecording(false);
-  };
+ // Initialize the Speech Recognition API
+ const recognition = new (window.SpeechRecognition ||
+   window.webkitSpeechRecognition)();
+ recognition.interimResults = true;
+ recognition.continuous = true; // Keep listening until explicitly stopped
+
+ // Function to handle transcription results
+ recognition.onresult = (event) => {
+   const transcript = Array.from(event.results)
+     .map((result) => result[0].transcript)
+     .join("");
+
+   setTranscribedText(transcript);
+
+   if (event.results[0].isFinal) {
+     handleSendAudioMessage(transcript);
+     setTranscribedText(""); // Clear the transcribed text after sending
+   }
+ };
+
+ // Handle end of speech recognition
+ recognition.onend = () => setIsRecording(false);
+
+ // Handle errors in speech recognition
+ recognition.onerror = (event) => {
+   console.error("Speech recognition error:", event.error);
+   if (event.error === "no-speech" && isRecording) {
+     console.log(
+       "No speech detected. Please try speaking louder or closer to the microphone."
+     );
+     recognition.start(); // Automatically restart if recording is active
+   }
+ };
+
+ // Toggle recording
+ const toggleRecording = () => {
+   if (isRecording) {
+     recognition.stop();
+     setIsRecording(false);
+   } else {
+     recognition.start();
+     setIsRecording(true);
+   }
+ };
 
   return (
     <div
@@ -677,7 +735,7 @@ const HomePage = () => {
               isDarkMode ? "bg-gray-700 text-white" : "bg-white text-gray-800"
             }`}
           />
-          <button onClick={handleVoiceInput} className="p-2">
+          <button onClick={toggleRecording} className="p-2">
             <MicrophoneIcon
               className={`h-6 w-6 ${
                 isRecording ? "text-red-500" : "text-green-500"
