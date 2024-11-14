@@ -380,16 +380,16 @@ const HomePage = () => {
                   {isDarkMode ? "Light Mode" : "Dark Mode"}
                 </button>
 
-                <button
+                {/* <button
                   onClick={handleSignInClick}
                   className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
                     isDarkMode
-                      ? "text-white hover:bg-gray-700"
-                      : "text-green-600 hover:bg-gray-100"
-                  }`}
-                >
-                  Login/Register
-                </button>
+                      ? "text-white hover:bg-gray-700" */}
+                {/* //       : "text-green-600 hover:bg-gray-100"
+                //   }`}
+                // >
+                //   Login/Register
+                // </button> */}
 
                 <button
                   onClick={handleClearChat}
@@ -411,7 +411,7 @@ const HomePage = () => {
                 >
                   Download Chat
                 </button>
-                <button
+                {/* <button
                   onClick={handleSignUpClick}
                   className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left ${
                     isDarkMode
@@ -420,8 +420,8 @@ const HomePage = () => {
                   }`}
                 >
                   Connect Doctor
-                </button>
-                <button
+                </button> */}
+                {/* <button
                   onClick={handleSignUpClick} // Show plans when clicked
                   className={`w-full px-4 py-2 font-medium hover:bg-gray-100 text-left${
                     isDarkMode
@@ -430,7 +430,7 @@ const HomePage = () => {
                   }`}
                 >
                   Upgrade Premium
-                </button>
+                </button> */}
               </div>
             )}
           </div>
